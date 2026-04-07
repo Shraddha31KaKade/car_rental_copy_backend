@@ -24,6 +24,8 @@ const authRoutes = require("./src/routes/authRoutes");
 const carRoutes = require("./src/routes/carRoutes");
 const bookingRoutes = require("./src/routes/bookingRoutes");
 
+const ownerRoutes = require("./src/routes/ownerRoutes");
+
 const app = express();
 
 app.use(cors()); // ✅ allow all origins
@@ -33,6 +35,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api/auth", authRoutes);
 app.use("/api/cars", carRoutes);
 app.use("/api/bookings", bookingRoutes);
+app.use("/api/owner", ownerRoutes);
 
 app.get("/", (req, res) => {
   res.send("Car Rental API running");

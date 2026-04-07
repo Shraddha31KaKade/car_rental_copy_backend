@@ -7,14 +7,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  CUSTOMER
+  OWNER
+}
+
+enum BookingStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
 model User {
   id       Int       @id @default(autoincrement())
   name     String
   email    String    @unique
   password String
+  role     Role      @default(CUSTOMER)
 
-  bookings Booking[]
-  ownedCars Car[]    @relation("CarOwner")
+  bookings      Booking[]
+  ownedCars     Car[]          @relation("CarOwner")
+  notifications Notification[]
 }
 
 model Car {
@@ -29,6 +43,7 @@ model Car {
   fuel         String?
   location     String?
   image        String?
+  availability Boolean   @default(true)
   ownerId      Int?
   owner        User?     @relation("CarOwner", fields: [ownerId], references: [id])
 
@@ -36,13 +51,22 @@ model Car {
 }
 
 model Booking {
-  id        Int      @id @default(autoincrement())
+  id        Int           @id @default(autoincrement())
   carId     Int
   userId    Int
   startDate DateTime
   endDate   DateTime
-  status    String   @default("RESERVED")
+  status    BookingStatus @default(PENDING)
 
   user User @relation(fields: [userId], references: [id])
   car  Car  @relation(fields: [carId], references: [id])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
 }

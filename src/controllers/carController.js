@@ -100,8 +100,14 @@ exports.createCar = async (req, res) => {
         fuel,
         location,
         image: displayImage,
-        ownerId: ownerId
+        ownerId: ownerId,
       }
+    });
+
+    // Auto-upgrade user role to OWNER
+    await prisma.user.update({
+      where: { id: ownerId },
+      data: { role: "OWNER" }
     });
 
     res.status(201).json(car);

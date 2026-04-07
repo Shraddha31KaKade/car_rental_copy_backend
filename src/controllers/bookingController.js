@@ -26,12 +26,22 @@ exports.createBooking = async (req, res) => {
         userId: Number(req.user.id),
         startDate: start,
         endDate: end,
-        status: "RESERVED"
+        status: "PENDING"
       },
       include: { car: true }
     });
 
     res.status(201).json(booking);
+
+    // Notify car owner
+    if (car.ownerId) {
+      await prisma.notification.create({
+        data: {
+          userId: car.ownerId,
+          message: `New booking request received for your ${car.name}.`
+        }
+      });
+    }
 
   } catch (error) {
     console.error("BOOKING ERROR:", error);
