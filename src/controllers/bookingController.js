@@ -1,4 +1,13 @@
 const prisma = require("../config/prisma");
+const nodemailer = require("nodemailer");
+
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
 
 exports.createBooking = async (req, res) => {
   try {
@@ -31,7 +40,6 @@ exports.createBooking = async (req, res) => {
       include: { car: true }
     });
 
-    res.status(201).json(booking);
 
     // Notify car owner
     if (car.ownerId) {
@@ -42,6 +50,25 @@ exports.createBooking = async (req, res) => {
         }
       });
     }
+
+    // Send email to customer (renter)
+    const user = await prisma.user.findUnique({ where: { id: Number(req.user.id) } });
+    if (user && user.email) {
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: user.email,
+        subject: `Booking Confirmation for ${car.name}`,
+        text: `Hello ${user.name},\n\nYour booking for ${car.name} from ${start.toDateString()} to ${end.toDateString()} has been received and is currently PENDING approval.\n\nThank you for choosing CarRental!`
+      };
+      
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) console.error("Error sending booking email:", error);
+        else console.log("Booking email sent:", info.response);
+      });
+    }
+
+    res.status(201).json(booking);
+
 
   } catch (error) {
     console.error("BOOKING ERROR:", error);
@@ -82,11 +109,28 @@ exports.deleteBooking = async (req, res) => {
       return res.status(403).json({ error: "Unauthorized to cancel this booking" });
     }
 
+    const user = await prisma.user.findUnique({ where: { id: Number(req.user.id) } });
+
     await prisma.booking.delete({
       where: { id: bookingId }
     });
 
     res.json({ message: "Booking cancelled successfully" });
+
+    // Send cancellation email
+    if (user && user.email) {
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: user.email,
+        subject: `Booking Cancelled`,
+        text: `Hello ${user.name},\n\nYour booking (ID: ${bookingId}) has been successfully cancelled as requested.\n\nThank you for choosing CarRental.`
+      };
+      
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) console.error("Error sending cancellation email:", error);
+        else console.log("Cancellation email sent:", info.response);
+      });
+    }
   } catch (error) {
     console.error("DELETE BOOKING ERROR:", error);
     res.status(500).json({ error: error.message });

@@ -25,6 +25,7 @@ model User {
   email    String    @unique
   password String
   role     Role      @default(CUSTOMER)
+  refreshToken String?
 
   bookings      Booking[]
   ownedCars     Car[]          @relation("CarOwner")

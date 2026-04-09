@@ -41,7 +41,8 @@ exports.getAllCars = async (req, res) => {
 
     const cars = await prisma.car.findMany({ 
       where,
-      include: { owner: { select: { name: true } } }
+      include: { owner: { select: { name: true } } },
+      orderBy: { id: 'desc' }
     });
     res.json(cars);
   } catch (error) {
