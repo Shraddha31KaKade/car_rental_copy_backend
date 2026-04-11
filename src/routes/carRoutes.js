@@ -22,6 +22,7 @@ const authMiddleware = require("../middleware/authMiddleware");
 const upload = require("../middleware/multerConfig");
 
 router.get("/", carController.getAllCars);
+router.get("/:id/availability", carController.getCarAvailability);
 router.get("/:id", carController.getCarById);
 router.post("/", authMiddleware, upload.single("image"), carController.createCar);
 

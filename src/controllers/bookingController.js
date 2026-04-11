@@ -29,12 +29,32 @@ exports.createBooking = async (req, res) => {
     const car = await prisma.car.findUnique({ where: { id: Number(carId) } });
     if (!car) return res.status(404).json({ error: "Car not found" });
 
+    // Check availability overlapping
+    const overlappingBookings = await prisma.booking.findMany({
+      where: {
+        carId: Number(carId),
+        status: { in: ['APPROVED', 'ACTIVE', 'PENDING'] },
+        OR: [
+           { startDate: { lte: end }, endDate: { gte: start } }
+        ]
+      }
+    });
+
+    if (overlappingBookings.length > 0) {
+      return res.status(400).json({ error: "Car is not available for the selected dates." });
+    }
+
+    // Calculate dynamic totalAmount
+    const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) || 1;
+    const totalAmount = car.price * days;
+
     const booking = await prisma.booking.create({
       data: {
         carId: Number(carId),
         userId: Number(req.user.id),
         startDate: start,
         endDate: end,
+        totalAmount: totalAmount,
         status: "PENDING"
       },
       include: { car: true }

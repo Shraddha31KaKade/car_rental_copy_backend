@@ -23,9 +23,27 @@
 
 const prisma = require("../config/prisma");
 
+// Helper for Geo-spatial calculation (Haversine formula)
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+  var R = 6371; // Radius of the earth in km
+  var dLat = deg2rad(lat2-lat1);
+  var dLon = deg2rad(lon2-lon1); 
+  var a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2); 
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+  return R * c; 
+}
+
+function deg2rad(deg) {
+  return deg * (Math.PI/180);
+}
+
+
 exports.getAllCars = async (req, res) => {
   try {
-    const { brand, search } = req.query;
+    const { brand, search, lat, lng, radius = 50, startDate, endDate } = req.query;
     
     let where = {};
     if (brand) {
@@ -38,12 +56,37 @@ exports.getAllCars = async (req, res) => {
         { type: { contains: search, mode: 'insensitive' } }
       ];
     }
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      where.bookings = {
+        none: {
+          status: { in: ['APPROVED', 'ACTIVE', 'PENDING'] },
+          OR: [
+             { startDate: { lte: end }, endDate: { gte: start } }
+          ]
+        }
+      };
+    }
 
-    const cars = await prisma.car.findMany({ 
+    let cars = await prisma.car.findMany({ 
       where,
       include: { owner: { select: { name: true } } },
       orderBy: { id: 'desc' }
     });
+
+    if (lat && lng) {
+      const userLat = parseFloat(lat);
+      const userLng = parseFloat(lng);
+      const maxRadius = parseFloat(radius);
+      
+      cars = cars.filter(car => {
+        if (!car.lat || !car.lng) return false;
+        const dist = getDistanceFromLatLonInKm(userLat, userLng, car.lat, car.lng);
+        return dist <= maxRadius;
+      });
+    }
+
     res.json(cars);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -65,6 +108,23 @@ exports.getCarById = async (req, res) => {
     }
 
     res.json(car);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getCarAvailability = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const bookings = await prisma.booking.findMany({
+      where: {
+        carId: Number(id),
+        status: { in: ['APPROVED', 'ACTIVE', 'PENDING'] },
+        endDate: { gte: new Date() } // Only future or current
+      },
+      select: { startDate: true, endDate: true }
+    });
+    res.json(bookings);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

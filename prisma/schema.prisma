@@ -10,13 +10,23 @@ datasource db {
 enum Role {
   CUSTOMER
   OWNER
+  ADMIN
 }
 
 enum BookingStatus {
   PENDING
   APPROVED
+  ACTIVE
   REJECTED
   COMPLETED
+  CANCELLED
+}
+
+enum CarStatus {
+  AVAILABLE
+  IN_TRIP
+  MAINTENANCE
+  CLEANING
 }
 
 model User {
@@ -26,10 +36,14 @@ model User {
   password String
   role     Role      @default(CUSTOMER)
   refreshToken String?
+  isVerified   Boolean   @default(false)
+  stripeCustomerId String?
 
   bookings      Booking[]
   ownedCars     Car[]          @relation("CarOwner")
   notifications Notification[]
+  documents     Document[]
+  chatLogs      ChatHistory[]
 }
 
 model Car {
@@ -44,7 +58,10 @@ model Car {
   fuel         String?
   location     String?
   image        String?
+  lat          Float?
+  lng          Float?
   availability Boolean   @default(true)
+  carStatus    CarStatus @default(AVAILABLE)
   ownerId      Int?
   owner        User?     @relation("CarOwner", fields: [ownerId], references: [id])
 
@@ -55,9 +72,11 @@ model Booking {
   id        Int           @id @default(autoincrement())
   carId     Int
   userId    Int
-  startDate DateTime
-  endDate   DateTime
-  status    BookingStatus @default(PENDING)
+  startDate   DateTime
+  endDate     DateTime
+  status      BookingStatus @default(PENDING)
+  totalAmount Float?
+  paymentId   String?
 
   user User @relation(fields: [userId], references: [id])
   car  Car  @relation(fields: [carId], references: [id])
@@ -69,5 +88,32 @@ model Notification {
   user      User     @relation(fields: [userId], references: [id])
   message   String
   isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Document {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  user          User     @relation(fields: [userId], references: [id])
+  type          DocType
+  fileUrl       String
+  extractedData Json?    
+  isValidated   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+enum DocType {
+  LICENSE
+  ID_PROOF
+}
+
+model ChatHistory {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id])
+  sessionId String
+  message   String
+  isBot     Boolean
+  intent    Json?    
   createdAt DateTime @default(now())
 }
