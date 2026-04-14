@@ -33,14 +33,23 @@ exports.createBooking = async (req, res) => {
     const overlappingBookings = await prisma.booking.findMany({
       where: {
         carId: Number(carId),
-        status: { in: ['APPROVED', 'ACTIVE', 'PENDING'] },
+        status: { in: ['APPROVED', 'PAYMENT_PENDING', 'CONFIRMED', 'ACTIVE', 'PENDING'] },
         OR: [
            { startDate: { lte: end }, endDate: { gte: start } }
         ]
       }
     });
 
-    if (overlappingBookings.length > 0) {
+    const blockedDates = await prisma.blockedDate.findMany({
+      where: {
+        carId: Number(carId),
+        OR: [
+           { startDate: { lte: end }, endDate: { gte: start } }
+        ]
+      }
+    });
+
+    if (overlappingBookings.length > 0 || blockedDates.length > 0) {
       return res.status(400).json({ error: "Car is not available for the selected dates." });
     }
 
@@ -153,6 +162,93 @@ exports.deleteBooking = async (req, res) => {
     }
   } catch (error) {
     console.error("DELETE BOOKING ERROR:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.approveBooking = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const booking = await prisma.booking.findUnique({ where: { id: Number(id) }, include: { car: true, user: true } });
+    
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    if (booking.car.ownerId !== Number(req.user.id)) return res.status(403).json({ error: "Forbidden" });
+    if (booking.status !== 'PENDING') return res.status(400).json({ error: "Only PENDING bookings can be approved." });
+
+    const updated = await prisma.booking.update({
+      where: { id: Number(id) },
+      data: { status: 'APPROVED' } // waiting for payment
+    });
+
+    if (booking.user.email) {
+       transporter.sendMail({
+          from: process.env.EMAIL_USER,
+          to: booking.user.email,
+          subject: `Payment required: Booking Approved for ${booking.car.name}`,
+          text: `Hello ${booking.user.name},\n\nYour request for ${booking.car.name} has been APPROVED by the owner!\n\nPlease login to your dashboard to complete the payment and confirm the booking.\n\nThank you!`
+       }).catch(console.error);
+    }
+
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.rejectBooking = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const booking = await prisma.booking.findUnique({ where: { id: Number(id) }, include: { car: true, user: true } });
+    
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    if (booking.car.ownerId !== Number(req.user.id)) return res.status(403).json({ error: "Forbidden" });
+
+    const updated = await prisma.booking.update({
+      where: { id: Number(id) },
+      data: { status: 'REJECTED', rejectionReason: reason || "No reason provided." }
+    });
+
+    if (booking.user.email) {
+       transporter.sendMail({
+          from: process.env.EMAIL_USER,
+          to: booking.user.email,
+          subject: `Booking Rejected for ${booking.car.name}`,
+          text: `Hello ${booking.user.name},\n\nUnfortunately, the owner has rejected your request for ${booking.car.name}.\nReason: ${reason || "Not specified"}\n\nPlease search for another vehicle.`
+       }).catch(console.error);
+    }
+
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.payBooking = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const booking = await prisma.booking.findUnique({ where: { id: Number(id) }, include: { car: { include: { owner: true } } } });
+    
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    if (booking.userId !== Number(req.user.id)) return res.status(403).json({ error: "Forbidden" });
+    if (booking.status !== 'APPROVED') return res.status(400).json({ error: "Booking is not in APPROVED state." });
+
+    // MOCK Payment (For Stripe Test Mode, this would verify a session checkout)
+    const updated = await prisma.booking.update({
+      where: { id: Number(id) },
+      data: { status: 'CONFIRMED', paymentId: `mock_st_${Date.now()}` }
+    });
+
+    res.json({
+       message: "Payment successful. Booking CONFIRMED.",
+       booking: updated,
+       ownerContact: {
+         phone: booking.car.owner.phone || "Not provided",
+         email: booking.car.owner.email,
+         pickupLocation: booking.car.location
+       }
+    });
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };

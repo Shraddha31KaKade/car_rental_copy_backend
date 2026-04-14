@@ -25,6 +25,7 @@ router.use(async (req, res, next) => {
 });
 
 router.get("/dashboard", ownerController.getDashboardData);
+router.get("/analytics", ownerController.getAnalytics);
 router.get("/cars", ownerController.getOwnerCars);
 router.get("/requests", ownerController.getOwnerRequests);
 router.patch("/requests/:id", ownerController.updateRequestStatus);

@@ -134,3 +134,67 @@ exports.markNotificationsRead = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+exports.getAnalytics = async (req, res) => {
+  try {
+    const ownerId = Number(req.user.id);
+    
+    // Total Earnings from COMPLETED and CONFIRMED bookings
+    const earnings = await prisma.booking.aggregate({
+      where: { 
+        status: { in: ['CONFIRMED', 'COMPLETED', 'ACTIVE'] },
+        car: { ownerId }
+      },
+      _sum: { totalAmount: true }
+    });
+    
+    const totalEarnings = earnings._sum.totalAmount || 0;
+
+    // Earnings per car
+    const cars = await prisma.car.findMany({
+      where: { ownerId },
+      include: {
+        bookings: {
+          where: { status: { in: ['CONFIRMED', 'COMPLETED', 'ACTIVE'] } },
+          select: { totalAmount: true }
+        }
+      }
+    });
+
+    const earningsPerCar = cars.map(car => ({
+      carId: car.id,
+      carName: car.name,
+      earned: car.bookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0)
+    }));
+
+    // Monthly earnings
+    const allValidBookings = await prisma.booking.findMany({
+      where: { 
+        status: { in: ['CONFIRMED', 'COMPLETED', 'ACTIVE'] },
+        car: { ownerId }
+      },
+      select: { startDate: true, totalAmount: true }
+    });
+
+    let earningsPerMonth = {};
+    const currYear = new Date().getFullYear();
+    for (let i = 0; i < 12; i++) earningsPerMonth[`${currYear}-${(i+1).toString().padStart(2, '0')}`] = 0;
+
+    allValidBookings.forEach(b => {
+      const d = new Date(b.startDate);
+      if (d.getFullYear() === currYear) {
+        const m = `${currYear}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+        earningsPerMonth[m] += (b.totalAmount || 0);
+      }
+    });
+
+    res.json({
+      totalEarnings,
+      earningsPerCar,
+      earningsPerMonth,
+      history: allValidBookings
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

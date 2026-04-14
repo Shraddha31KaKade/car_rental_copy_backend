@@ -1,30 +1,35 @@
 const multer = require("multer");
-const path = require("path");
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const cloudinary = require("cloudinary").v2;
+require("dotenv").config();
 
-// Configure storage for uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/");
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname));
-  }
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "demo",
+  api_key: process.env.CLOUDINARY_API_KEY || "demo",
+  api_secret: process.env.CLOUDINARY_API_SECRET || "demo",
 });
 
-// File filter to ensure only images are uploaded
-const fileFilter = (req, file, cb) => {
-  if (file.mimetype.startsWith("image/")) {
-    cb(null, true);
-  } else {
-    cb(new Error("Only images are allowed"), false);
-  }
-};
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: async (req, file) => {
+    let folderName = "car-rental/general";
+    if (file.fieldname === "rcDocument") folderName = "car-rental/docs";
+    if (file.fieldname === "images" || file.fieldname === "image") folderName = "car-rental/cars";
+    
+    // allow pdf for rc documents
+    const allowedFormats = file.fieldname === "rcDocument" ? ["jpg", "png", "jpeg", "pdf"] : ["jpg", "png", "jpeg", "webp"];
+
+    return {
+      folder: folderName,
+      allowed_formats: allowedFormats,
+    };
+  },
+});
 
 const upload = multer({
   storage: storage,
-  fileFilter: fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
 });
 
 module.exports = upload;

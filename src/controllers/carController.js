@@ -43,9 +43,13 @@ function deg2rad(deg) {
 
 exports.getAllCars = async (req, res) => {
   try {
-    const { brand, search, lat, lng, radius = 50, startDate, endDate } = req.query;
+    const { brand, search, lat, lng, radius = 50, startDate, endDate, ownerId } = req.query;
     
-    let where = {};
+    let where = { isPaused: false };
+    if (ownerId) {
+      where.ownerId = Number(ownerId);
+      delete where.isPaused; // owner can see their paused cars
+    }
     if (brand) {
       where.brand = { contains: brand, mode: 'insensitive' };
     }
@@ -132,16 +136,27 @@ exports.getCarAvailability = async (req, res) => {
 
 exports.createCar = async (req, res) => {
   try {
-    const { name, brand, type, year, price, seats, transmission, fuel, location, image } = req.body;
+    const { name, brand, type, year, price, condition, seats, transmission, fuel, location, lat, lng } = req.body;
     
     if (!req.user || !req.user.id) {
       return res.status(401).json({ error: "Unauthorized access detected." });
     }
 
-    // Determine finalized image path
-    let displayImage = image; // fallback to URL if provided
-    if (req.file) {
-      displayImage = `/uploads/${req.file.filename}`;
+    let displayImage = null;
+    let images = [];
+    let rcDocument = null;
+
+    if (req.files) {
+      if (req.files['images']) {
+         images = req.files['images'].map(f => f.path);
+         displayImage = images[0]; // first image is the display image
+      } else if (req.files['image']) {
+         displayImage = req.files['image'][0].path;
+         images = [displayImage];
+      }
+      if (req.files['rcDocument']) {
+         rcDocument = req.files['rcDocument'][0].path;
+      }
     }
 
     const ownerId = Number(req.user.id);
@@ -151,16 +166,16 @@ exports.createCar = async (req, res) => {
 
     const car = await prisma.car.create({
       data: {
-        name,
-        brand,
-        type,
+        name, brand, type, condition,
         year: parsedYear,
         price: parsedPrice,
         seats: parsedSeats,
-        transmission,
-        fuel,
-        location,
+        transmission, fuel, location,
+        lat: lat ? parseFloat(lat) : null,
+        lng: lng ? parseFloat(lng) : null,
         image: displayImage,
+        images: images,
+        rcDocument: rcDocument,
         ownerId: ownerId,
       }
     });
@@ -174,6 +189,74 @@ exports.createCar = async (req, res) => {
     res.status(201).json(car);
   } catch (error) {
     console.error("CREATE CAR ERROR:", error);
-    res.status(500).json({ error: "Asset Integration Denied: " + error.message });
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.updateCar = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, brand, type, year, price, condition, seats, transmission, fuel, location, lat, lng } = req.body;
+    
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: "Unauthorized access detected." });
+    }
+
+    const carAuth = await prisma.car.findUnique({ where: { id: Number(id) } });
+    if (!carAuth || carAuth.ownerId !== Number(req.user.id)) {
+      return res.status(403).json({ error: "Forbidden: Not the owner" });
+    }
+
+    let updateData = {
+      name, brand, type, condition, transmission, fuel, location,
+      year: year ? Math.floor(Number(year)) : undefined,
+      price: price ? Math.floor(Number(price)) : undefined,
+      seats: seats ? Math.floor(Number(seats)) : undefined,
+      lat: lat ? parseFloat(lat) : undefined,
+      lng: lng ? parseFloat(lng) : undefined,
+    };
+
+    if (req.files) {
+      if (req.files['images']) {
+         updateData.images = req.files['images'].map(f => f.path);
+         updateData.image = updateData.images[0];
+      }
+      if (req.files['rcDocument']) {
+         updateData.rcDocument = req.files['rcDocument'][0].path;
+      }
+    }
+
+    // Clean up undefined properties
+    Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
+
+    const updatedCar = await prisma.car.update({
+      where: { id: Number(id) },
+      data: updateData
+    });
+
+    res.json(updatedCar);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.pauseCar = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isPaused } = req.body;
+
+    const carAuth = await prisma.car.findUnique({ where: { id: Number(id) } });
+    if (!carAuth || carAuth.ownerId !== Number(req.user.id)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const updatedCar = await prisma.car.update({
+      where: { id: Number(id) },
+      data: { isPaused: Boolean(isPaused) }
+    });
+
+    res.json(updatedCar);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };

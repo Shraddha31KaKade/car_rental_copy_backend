@@ -24,6 +24,15 @@ const upload = require("../middleware/multerConfig");
 router.get("/", carController.getAllCars);
 router.get("/:id/availability", carController.getCarAvailability);
 router.get("/:id", carController.getCarById);
-router.post("/", authMiddleware, upload.single("image"), carController.createCar);
+
+const cpUpload = upload.fields([
+  { name: 'images', maxCount: 5 },
+  { name: 'image', maxCount: 1 }, // legacy support
+  { name: 'rcDocument', maxCount: 1 }
+]);
+
+router.post("/", authMiddleware, cpUpload, carController.createCar);
+router.put("/:id", authMiddleware, cpUpload, carController.updateCar);
+router.patch("/:id/pause", authMiddleware, carController.pauseCar);
 
 module.exports = router;

@@ -16,10 +16,18 @@ enum Role {
 enum BookingStatus {
   PENDING
   APPROVED
+  PAYMENT_PENDING
+  CONFIRMED
   ACTIVE
   REJECTED
   COMPLETED
   CANCELLED
+}
+
+enum CarCondition {
+  NEW
+  GOOD
+  AVERAGE
 }
 
 enum CarStatus {
@@ -30,13 +38,13 @@ enum CarStatus {
 }
 
 model User {
-  id       Int       @id @default(autoincrement())
-  name     String
-  email    String    @unique
-  password String
-  role     Role      @default(CUSTOMER)
-  refreshToken String?
-  isVerified   Boolean   @default(false)
+  id               Int     @id @default(autoincrement())
+  name             String
+  email            String  @unique
+  password         String
+  role             Role    @default(CUSTOMER)
+  refreshToken     String?
+  isVerified       Boolean @default(false)
   stripeCustomerId String?
 
   bookings      Booking[]
@@ -47,7 +55,7 @@ model User {
 }
 
 model Car {
-  id           Int       @id @default(autoincrement())
+  id           Int          @id @default(autoincrement())
   name         String
   brand        String?
   type         String?
@@ -58,28 +66,46 @@ model Car {
   fuel         String?
   location     String?
   image        String?
+  images       String[]
+  rcDocument   String?
+  condition    CarCondition @default(GOOD)
+  isPaused     Boolean      @default(false)
   lat          Float?
   lng          Float?
-  availability Boolean   @default(true)
-  carStatus    CarStatus @default(AVAILABLE)
+  availability Boolean      @default(true)
+  carStatus    CarStatus    @default(AVAILABLE)
   ownerId      Int?
-  owner        User?     @relation("CarOwner", fields: [ownerId], references: [id])
+  owner        User?        @relation("CarOwner", fields: [ownerId], references: [id])
 
-  bookings Booking[]
+  bookings     Booking[]
+  blockedDates BlockedDate[]
 }
 
 model Booking {
-  id        Int           @id @default(autoincrement())
-  carId     Int
-  userId    Int
+  id          Int           @id @default(autoincrement())
+  carId       Int
+  userId      Int
   startDate   DateTime
   endDate     DateTime
   status      BookingStatus @default(PENDING)
   totalAmount Float?
   paymentId   String?
 
+  rejectionReason String?
+  ownerContacted  Boolean @default(false)
+
   user User @relation(fields: [userId], references: [id])
   car  Car  @relation(fields: [carId], references: [id])
+}
+
+model BlockedDate {
+  id        Int      @id @default(autoincrement())
+  carId     Int
+  startDate DateTime
+  endDate   DateTime
+  reason    String?
+
+  car Car @relation(fields: [carId], references: [id])
 }
 
 model Notification {
@@ -97,7 +123,7 @@ model Document {
   user          User     @relation(fields: [userId], references: [id])
   type          DocType
   fileUrl       String
-  extractedData Json?    
+  extractedData Json?
   isValidated   Boolean  @default(false)
   createdAt     DateTime @default(now())
 }
@@ -114,6 +140,6 @@ model ChatHistory {
   sessionId String
   message   String
   isBot     Boolean
-  intent    Json?    
+  intent    Json?
   createdAt DateTime @default(now())
 }
