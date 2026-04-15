@@ -52,6 +52,9 @@ model User {
   notifications Notification[]
   documents     Document[]
   chatLogs      ChatHistory[]
+
+  ownerVerifications VerificationRequest[] @relation("OwnerVerifications")
+  adminVerifications VerificationRequest[] @relation("AdminVerifications")
 }
 
 model Car {
@@ -79,6 +82,7 @@ model Car {
 
   bookings     Booking[]
   blockedDates BlockedDate[]
+  verifications VerificationRequest[] @relation("CarVerifications")
 }
 
 model Booking {
@@ -142,4 +146,38 @@ model ChatHistory {
   isBot     Boolean
   intent    Json?
   createdAt DateTime @default(now())
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REUPLOAD_REQUIRED
+}
+
+enum AdminDocumentType {
+  OWNER_ID
+  VEHICLE_RC
+  INSURANCE
+}
+
+model VerificationRequest {
+  id              Int                @id @default(autoincrement())
+  ownerId         Int
+  owner           User               @relation("OwnerVerifications", fields: [ownerId], references: [id])
+  vehicleId       Int?
+  vehicle         Car?               @relation("CarVerifications", fields: [vehicleId], references: [id])
+  documentType    AdminDocumentType
+  documentUrl     String
+  status          VerificationStatus @default(PENDING)
+  
+  reviewedBy      Int?
+  adminUser       User?              @relation("AdminVerifications", fields: [reviewedBy], references: [id])
+  adminNotes      String?
+  reviewedAt      DateTime?
+
+  aiAnalysis      Json?
+  
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 }
