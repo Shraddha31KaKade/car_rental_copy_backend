@@ -27,6 +27,7 @@ const bookingRoutes = require("./src/routes/bookingRoutes");
 const ownerRoutes = require("./src/routes/ownerRoutes");
 const aiRoutes = require("./src/routes/aiRoutes");
 const verificationRoutes = require("./src/routes/verificationRoutes");
+const adminRoutes = require("./src/routes/adminRoutes");
 
 const app = express();
 
@@ -40,9 +41,19 @@ app.use("/api/bookings", bookingRoutes);
 app.use("/api/owner", ownerRoutes);
 app.use("/api/v1/ai", aiRoutes);
 app.use("/api/verifications", verificationRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.get("/", (req, res) => {
   res.send("Car Rental API running");
+});
+
+// Global error handler to prevent HTML responses
+app.use((err, req, res, next) => {
+  console.error("Global Error Handler Caught:", err);
+  if (err && err.message) {
+    return res.status(500).json({ error: err.message });
+  }
+  res.status(500).json({ error: "Internal Server Error" });
 });
 
 const PORT = process.env.PORT || 5000;

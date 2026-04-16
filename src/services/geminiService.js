@@ -52,6 +52,42 @@ const extractDocumentInfo = async (imageUrl, documentType) => {
   }
 };
 
+const analyzeReportText = async (complaintText) => {
+  try {
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+      }
+    });
+
+    const prompt = `System Instruction: You are an AI assistant for a car rental platform. Analyze the following complaint text and categorize it.
+Ensure your response is valid JSON matching this schema:
+{
+  "category": "String (e.g. Off-Platform Transaction, Rude Behavior, Vehicle Quality, Payment Issue)",
+  "severity": "LOW | MEDIUM | HIGH | CRITICAL",
+  "summary": "String (A one sentence summary of the complaint)",
+  "suggestedPriority": "LOW | NORMAL | URGENT"
+}
+
+Complaint Text:
+"${complaintText}"`;
+
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+    return JSON.parse(responseText);
+  } catch (error) {
+    console.error("Gemini Report Analysis Error:", error);
+    return {
+      category: "Uncategorized",
+      severity: "UNKNOWN",
+      summary: "AI classification failed.",
+      suggestedPriority: "NORMAL"
+    };
+  }
+};
+
 module.exports = {
-  extractDocumentInfo
+  extractDocumentInfo,
+  analyzeReportText
 };

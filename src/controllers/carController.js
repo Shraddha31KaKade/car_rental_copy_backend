@@ -49,7 +49,10 @@ exports.getAllCars = async (req, res) => {
     if (ownerId) {
       where.ownerId = Number(ownerId);
       delete where.isPaused; // owner can see their paused cars
+    } else {
+      where.listingStatus = 'APPROVED'; // strictly only public approved listings
     }
+    
     if (brand) {
       where.brand = { contains: brand, mode: 'insensitive' };
     }
@@ -146,16 +149,21 @@ exports.createCar = async (req, res) => {
     let images = [];
     let rcDocument = null;
 
+    const getFileUrl = (f) => {
+      if (f.path.startsWith("http") || f.path.startsWith("https")) return f.path;
+      return "/uploads/" + f.filename;
+    };
+
     if (req.files) {
       if (req.files['images']) {
-         images = req.files['images'].map(f => f.path);
+         images = req.files['images'].map(f => getFileUrl(f));
          displayImage = images[0]; // first image is the display image
       } else if (req.files['image']) {
-         displayImage = req.files['image'][0].path;
+         displayImage = getFileUrl(req.files['image'][0]);
          images = [displayImage];
       }
       if (req.files['rcDocument']) {
-         rcDocument = req.files['rcDocument'][0].path;
+         rcDocument = getFileUrl(req.files['rcDocument'][0]);
       }
     }
 
@@ -216,18 +224,28 @@ exports.updateCar = async (req, res) => {
       lng: lng ? parseFloat(lng) : undefined,
     };
 
+    const getFileUrl = (f) => {
+      if (f.path.startsWith("http") || f.path.startsWith("https")) return f.path;
+      return "/uploads/" + f.filename;
+    };
+
     if (req.files) {
       if (req.files['images']) {
-         updateData.images = req.files['images'].map(f => f.path);
+         updateData.images = req.files['images'].map(f => getFileUrl(f));
          updateData.image = updateData.images[0];
       }
       if (req.files['rcDocument']) {
-         updateData.rcDocument = req.files['rcDocument'][0].path;
+         updateData.rcDocument = getFileUrl(req.files['rcDocument'][0]);
       }
     }
 
     // Clean up undefined properties
     Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
+
+    // Automatically set status back to pending if they had changes requested or were rejected
+    if (carAuth.listingStatus === "CHANGES_REQUESTED" || carAuth.listingStatus === "REJECTED") {
+      updateData.listingStatus = "PENDING_APPROVAL";
+    }
 
     const updatedCar = await prisma.car.update({
       where: { id: Number(id) },

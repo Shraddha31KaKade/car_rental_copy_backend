@@ -13,6 +13,14 @@ enum Role {
   ADMIN
 }
 
+enum ListingStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
 enum BookingStatus {
   PENDING
   APPROVED
@@ -55,6 +63,9 @@ model User {
 
   ownerVerifications VerificationRequest[] @relation("OwnerVerifications")
   adminVerifications VerificationRequest[] @relation("AdminVerifications")
+  reportsMade        Report[] @relation("ReporterRelation")
+  reportsReceived    Report[] @relation("ReportedUserRelation")
+  adminReviewedCars  Car[]    @relation("AdminCarReviews")
 }
 
 model Car {
@@ -80,9 +91,17 @@ model Car {
   ownerId      Int?
   owner        User?        @relation("CarOwner", fields: [ownerId], references: [id])
 
+  listingStatus   ListingStatus @default(PENDING_APPROVAL)
+  adminNotes      String?
+  rejectionReason String?
+  reviewedAt      DateTime?
+  reviewedBy      Int?
+  adminUser       User?         @relation("AdminCarReviews", fields: [reviewedBy], references: [id])
+
   bookings     Booking[]
   blockedDates BlockedDate[]
   verifications VerificationRequest[] @relation("CarVerifications")
+  reports      Report[]
 }
 
 model Booking {
@@ -100,6 +119,7 @@ model Booking {
 
   user User @relation(fields: [userId], references: [id])
   car  Car  @relation(fields: [carId], references: [id])
+  reports Report[]
 }
 
 model BlockedDate {
@@ -180,4 +200,44 @@ model VerificationRequest {
   
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
+}
+
+enum ReportStatus {
+  PENDING
+  UNDER_REVIEW
+  DISMISS
+  ESCALATE
+  RESOLVED
+}
+
+model Report {
+  id               Int           @id @default(autoincrement())
+  reporterId       Int
+  reportedUserId   Int
+  vehicleId        Int?
+  bookingId        Int?
+  complaintText    String
+  attachmentUrls   String[]
+  status           ReportStatus  @default(PENDING)
+  adminNotes       String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  reporter         User          @relation("ReporterRelation", fields: [reporterId], references: [id])
+  reportedUser     User          @relation("ReportedUserRelation", fields: [reportedUserId], references: [id])
+  vehicle          Car?          @relation(fields: [vehicleId], references: [id])
+  booking          Booking?      @relation(fields: [bookingId], references: [id])
+  aiInsight        ReportAIInsight?
+}
+
+model ReportAIInsight {
+  id                Int      @id @default(autoincrement())
+  reportId          Int      @unique
+  category          String?
+  severity          String?
+  summary           String?
+  suggestedPriority String?
+  createdAt         DateTime @default(now())
+
+  report            Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
 }
