@@ -1,9 +1,7 @@
+const jwt     = require("jsonwebtoken");
+const prisma  = require("../config/prisma");
 
-
-const jwt = require("jsonwebtoken");
-
-module.exports = (req, res, next) => {
-
+module.exports = async (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
 
   if (!token) {
@@ -11,13 +9,21 @@ module.exports = (req, res, next) => {
   }
 
   try {
-
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    req.user = decoded;
+    // Fetch live user from DB so we always have up-to-date role
+    // (JWT only contains { id } — role is not embedded in token)
+    const user = await prisma.user.findUnique({
+      where:  { id: Number(decoded.id) },
+      select: { id: true, name: true, email: true, role: true },
+    });
 
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    req.user = user; // { id: Int, name, email, role }
     next();
-
   } catch (error) {
     return res.status(401).json({ message: "Invalid token" });
   }

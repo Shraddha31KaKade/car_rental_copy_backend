@@ -22,6 +22,7 @@
 
 
 const prisma = require("../config/prisma");
+const { sendTemplate } = require("../services/emailService");
 
 // Helper for Geo-spatial calculation (Haversine formula)
 function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
@@ -243,14 +244,42 @@ exports.updateCar = async (req, res) => {
     Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
 
     // Automatically set status back to pending if they had changes requested or were rejected
-    if (carAuth.listingStatus === "CHANGES_REQUESTED" || carAuth.listingStatus === "REJECTED") {
+    const wasAwaitingChanges = carAuth.listingStatus === "CHANGES_REQUESTED" || carAuth.listingStatus === "REJECTED";
+    if (wasAwaitingChanges) {
       updateData.listingStatus = "PENDING_APPROVAL";
     }
 
     const updatedCar = await prisma.car.update({
       where: { id: Number(id) },
-      data: updateData
+      data: updateData,
     });
+
+    // ── EMAIL → Admin when owner resubmits after CHANGES_REQUESTED or REJECTED ──
+    if (wasAwaitingChanges && process.env.ADMIN_EMAIL) {
+      const owner = await prisma.user.findUnique({
+        where:  { id: Number(req.user.id) },
+        select: { name: true, email: true },
+      });
+      sendTemplate({
+        to:       process.env.ADMIN_EMAIL,
+        subject:  `[Re-submitted] ${updatedCar.name} — Listing #${updatedCar.id} is ready for re-review`,
+        template: "car-resubmitted",
+        html: `
+          <div style="font-family:sans-serif;max-width:560px;margin:auto">
+            <h2 style="color:#1a1a2e">🔁 Listing Re-submitted for Review</h2>
+            <p>The owner has updated their listing and it is ready for re-review.</p>
+            <ul>
+              <li><b>Listing ID:</b> #${updatedCar.id}</li>
+              <li><b>Car:</b> ${updatedCar.name}</li>
+              <li><b>Owner:</b> ${owner?.name || "N/A"} (${owner?.email || "N/A"})</li>
+              <li><b>Previous Status:</b> ${carAuth.listingStatus}</li>
+            </ul>
+            <p>Please log in to the admin dashboard to review.</p>
+          </div>
+        `,
+      });
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     res.json(updatedCar);
   } catch (error) {
