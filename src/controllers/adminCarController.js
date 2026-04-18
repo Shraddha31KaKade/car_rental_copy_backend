@@ -93,6 +93,13 @@ exports.reviewListing = async (req, res) => {
             </div>
           `,
         });
+        // Create In-App Notification
+        await prisma.notification.create({
+          data: {
+            userId: existingCar.ownerId,
+            message: `🎉 Your car "${carName}" has been approved! It's now live for bookings.`
+          }
+        });
       } else if (status === "REJECTED") {
         sendTemplate({
           to:       existingCar.owner.email,
@@ -109,6 +116,13 @@ exports.reviewListing = async (req, res) => {
               <p style="color:#888;font-size:13px;margin-top:24px">— CarRental Team</p>
             </div>
           `,
+        });
+        // Create In-App Notification
+        await prisma.notification.create({
+          data: {
+            userId: existingCar.ownerId,
+            message: `❌ Your car "${carName}" was rejected. Check your email for details.`
+          }
         });
       } else if (status === "CHANGES_REQUESTED") {
         sendTemplate({
@@ -128,6 +142,13 @@ exports.reviewListing = async (req, res) => {
               <p style="color:#888;font-size:13px;margin-top:24px">— CarRental Team</p>
             </div>
           `,
+        });
+        // Create In-App Notification
+        await prisma.notification.create({
+          data: {
+            userId: existingCar.ownerId,
+            message: `📝 Changes requested for "${carName}". Please update your listing from the owner panel.`
+          }
         });
       }
     }

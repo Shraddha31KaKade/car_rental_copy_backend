@@ -28,6 +28,7 @@ const ownerRoutes = require("./src/routes/ownerRoutes");
 const aiRoutes = require("./src/routes/aiRoutes");
 const verificationRoutes = require("./src/routes/verificationRoutes");
 const adminRoutes = require("./src/routes/adminRoutes");
+const contactRoutes = require("./src/routes/contactRoutes");
 
 const app = express();
 
@@ -42,6 +43,7 @@ app.use("/api/owner", ownerRoutes);
 app.use("/api/v1/ai", aiRoutes);
 app.use("/api/verifications", verificationRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/contact", contactRoutes);
 
 app.get("/", (req, res) => {
   res.send("Car Rental API running");
