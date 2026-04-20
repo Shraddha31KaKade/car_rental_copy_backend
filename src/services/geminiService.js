@@ -1,93 +1,39 @@
 // src/services/geminiService.js
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { getDocumentExtractionPrompt } = require("../utils/promptTemplates");
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 /**
- * Downloads image from URL and converts to base64
+ * Handles guidance and QA using Gemini with full project context.
  */
-async function urlToGenerativePart(url) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error("Failed to fetch image from URL");
-  const buffer = await response.arrayBuffer();
-  const mimeType = response.headers.get("content-type") || "image/jpeg";
-  return {
-    inlineData: {
-      data: Buffer.from(buffer).toString("base64"),
-      mimeType
-    },
-  };
-}
-
-const extractDocumentInfo = async (imageUrl, documentType) => {
+const getGeminiResponse = async (message, intent, history = []) => {
   try {
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-      }
-    });
+    if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === "") {
+      return "GEMINI_API_KEY is missing. Please check your backend .env file.";
+    }
 
-    const prompt = getDocumentExtractionPrompt(documentType);
-    const imagePart = await urlToGenerativePart(imageUrl);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    const result = await model.generateContent([prompt, imagePart]);
-    const responseText = result.response.text();
-    
-    // Parse the JSON string
-    return JSON.parse(responseText);
+    const systemPrompt = `
+Context: You are the CarRental Elite Expert.
+Rules: 
+1. RENTERS: Browse at /cars.
+2. OWNERS: List at /list-cars.
+3. ADMINS: Dash at /admin.
+Tone: Short & Helpful.
+`;
+
+    // Construct a single string prompt with history
+    const historyText = history.slice(-3).map(h => `${h.isBot ? "Assistant" : "User"}: ${h.text}`).join("\n");
+    const fullPrompt = `${systemPrompt}\n\nRecent History:\n${historyText}\n\nUser Question: ${message}\nAnswer:`;
+
+    const result = await model.generateContent(fullPrompt);
+    return result.response.text();
+
   } catch (error) {
-    console.error("Gemini Extraction Error:", error);
-    // Graceful fallback if AI parsing fails
-    return {
-      ownerNameFound: null,
-      vehicleNumberFound: null,
-      expiryDateFound: null,
-      isReadable: false,
-      mismatchIssues: ["AI extraction failed: " + error.message],
-      aiSummary: "Could not automatically process document.",
-      riskLevel: "HIGH"
-    };
+    console.error("Gemini Error Detail:", error);
+    return "I’m unable to answer that right now, but I can still help with car search, booking flow, owner dashboard guidance, and admin access rules.";
   }
 };
 
-const analyzeReportText = async (complaintText) => {
-  try {
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-      }
-    });
-
-    const prompt = `System Instruction: You are an AI assistant for a car rental platform. Analyze the following complaint text and categorize it.
-Ensure your response is valid JSON matching this schema:
-{
-  "category": "String (e.g. Off-Platform Transaction, Rude Behavior, Vehicle Quality, Payment Issue)",
-  "severity": "LOW | MEDIUM | HIGH | CRITICAL",
-  "summary": "String (A one sentence summary of the complaint)",
-  "suggestedPriority": "LOW | NORMAL | URGENT"
-}
-
-Complaint Text:
-"${complaintText}"`;
-
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
-    return JSON.parse(responseText);
-  } catch (error) {
-    console.error("Gemini Report Analysis Error:", error);
-    return {
-      category: "Uncategorized",
-      severity: "UNKNOWN",
-      summary: "AI classification failed.",
-      suggestedPriority: "NORMAL"
-    };
-  }
-};
-
-module.exports = {
-  extractDocumentInfo,
-  analyzeReportText
-};
+module.exports = { getGeminiResponse };

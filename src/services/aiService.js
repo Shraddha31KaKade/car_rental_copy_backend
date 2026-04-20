@@ -3,12 +3,19 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 // Ensure to add GEMINI_API_KEY to your .env file
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "dummy_key_for_now");
 
-exports.chatResponse = async (message) => {
+exports.chatResponse = async (message, context = "") => {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     const prompt = `
-You are an intelligent Car Rental Assistant. 
-When a user expresses requirements for a car, extract that into a JSON block within your response using exactly this schema, otherwise just respond conversationally:
+You are the official "CarRental Elite" AI Concierge. 
+Your goal is to assist users in finding the perfect luxury vehicle and explaining our premium services.
+
+${context ? `### Current Project Context (Available Fleet & Services):\n${context}\n` : ""}
+
+### Guidelines:
+1. Always maintain a premium, professional, and slightly futuristic tone.
+2. If the user asks for car recommendations, refer to the available fleet in the context above.
+3. If a user expresses requirements for a car (budget, type, etc.), you MUST include a JSON block in your response using exactly this schema:
 \`\`\`json
 {
   "_intent": "search_cars",
@@ -17,6 +24,8 @@ When a user expresses requirements for a car, extract that into a JSON block wit
   "maxBudget": "number | null"
 }
 \`\`\`
+4. If you don't have specific info in the context, be helpful but mention that our human concierge can provide more details.
+
 User Query: "${message}"
 `;
     const result = await model.generateContent(prompt);
@@ -33,12 +42,14 @@ User Query: "${message}"
       }
     }
 
-    return { reply: responseText.replace(/```json([\s\S]*?)```/, '').trim(), intent };
+    return { 
+      reply: responseText.replace(/```json([\s\S]*?)```/, '').trim(), 
+      intent 
+    };
   } catch (error) {
     console.error("AI Chat Error:", error);
-    // Graceful fallback for invalid/missing API Keys
     return { 
-      reply: "I'm currently running in offline demo mode since my API keys are not valid. Still, I can recommend some great rides for you!", 
+      reply: "I’m unable to answer that right now, but I can still help with car search, booking flow, owner dashboard guidance, and admin access rules.", 
       intent: null 
     };
   }
@@ -46,7 +57,7 @@ User Query: "${message}"
 
 exports.extractDocument = async (textContext) => {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     const prompt = `
 You are a strict Operational Document Parser OCR. You will act on extracted text from an uploaded Driving License or ID Proof.
 Analyze the following text and extract the data strictly into the following JSON format. If a field cannot be determined reliably, use null.
@@ -79,7 +90,7 @@ Text Context: ${textContext}
 
 exports.extractRCDocument = async (textContext) => {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     const prompt = `
 You are a strict Operational Document Parser OCR. You will act on extracted text from an uploaded Car Registration Certificate (RC) Document.
 Analyze the following text and extract the data strictly into the following JSON format. If a field cannot be determined reliably, use null.
@@ -121,7 +132,7 @@ Text Context: ${textContext}
 exports.generateRecommendations = async (params) => {
   // Logic to map parameters to car IDs using AI or rule-based logic
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     const prompt = `
 Given these user parameters: ${JSON.stringify(params)}, return a single JSON array of recommended car types (e.g. ["SUV", "Sedan"]). Only the JSON array.
 `;
@@ -134,6 +145,7 @@ Given these user parameters: ${JSON.stringify(params)}, return a single JSON arr
     }
     return types;
   } catch (error) {
-    throw new Error("AI Recommendation Service Unavailable");
+    console.error("Recommend Error:", error);
+    return [];
   }
 };
