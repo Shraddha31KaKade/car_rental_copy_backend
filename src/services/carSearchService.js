@@ -46,7 +46,22 @@ const searchCars = async (filters) => {
        return MOCK_CARS.slice(0, 5); 
     }
 
-    return results;
+    return results.map(car => {
+      // Only sanitize if it looks like a local filesystem path and is NOT a URL
+      if (car.image && !car.image.startsWith('http') && (car.image.includes(':') || car.image.includes('\\'))) {
+        const filename = car.image.split(/[\\/]/).pop();
+        car.image = `/uploads/${filename}`;
+      }
+      if (car.images && car.images.length > 0) {
+        car.images = car.images.map(img => {
+          if (img && !img.startsWith('http') && (img.includes(':') || img.includes('\\'))) {
+            return `/uploads/${img.split(/[\\/]/).pop()}`;
+          }
+          return img;
+        });
+      }
+      return car;
+    });
   } catch (error) {
     console.error("CarSearchService Error:", error.message);
     return MOCK_CARS.filter(car => {

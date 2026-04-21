@@ -95,7 +95,25 @@ exports.getAllCars = async (req, res) => {
       });
     }
 
-    res.json(cars);
+    // Normalize image paths
+    const sanitizedCars = cars.map(car => {
+      // Only sanitize if it looks like a local filesystem path and is NOT a URL
+      if (car.image && !car.image.startsWith('http') && (car.image.includes(':') || car.image.includes('\\'))) {
+        const filename = car.image.split(/[\\/]/).pop();
+        car.image = `/uploads/${filename}`;
+      }
+      if (car.images && car.images.length > 0) {
+        car.images = car.images.map(img => {
+          if (img && !img.startsWith('http') && (img.includes(':') || img.includes('\\'))) {
+            return `/uploads/${img.split(/[\\/]/).pop()}`;
+          }
+          return img;
+        });
+      }
+      return car;
+    });
+
+    res.json(sanitizedCars);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -113,6 +131,19 @@ exports.getCarById = async (req, res) => {
 
     if (!car) {
       return res.status(404).json({ error: "Car not found" });
+    }
+
+    if (car.image && !car.image.startsWith('http') && (car.image.includes(':') || car.image.includes('\\'))) {
+      const filename = car.image.split(/[\\/]/).pop();
+      car.image = `/uploads/${filename}`;
+    }
+    if (car.images && car.images.length > 0) {
+      car.images = car.images.map(img => {
+        if (img && !img.startsWith('http') && (img.includes(':') || img.includes('\\'))) {
+          return `/uploads/${img.split(/[\\/]/).pop()}`;
+        }
+        return img;
+      });
     }
 
     res.json(car);
