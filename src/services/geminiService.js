@@ -12,7 +12,7 @@ const getGeminiResponse = async (message, intent, history = [], userRole = "GUES
       return "GEMINI_API_KEY is missing. Please check your backend .env file.";
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const systemPrompt = `
     You are the "Antigravity Assistant", a hybrid expert powered by the BMAD Method.

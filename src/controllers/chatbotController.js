@@ -1,5 +1,5 @@
 // src/controllers/chatbotController.js
-const { detectIntent } = require("../utils/detectIntent");
+const { classifyIntent } = require("../services/aiIntentService");
 const { extractCarFilters } = require("../utils/extractCarFilters");
 const { searchCars } = require("../services/carSearchService");
 const { getGeminiResponse } = require("../services/geminiService");
@@ -23,8 +23,8 @@ exports.handleChat = async (req, res) => {
       history: []
     };
 
-    // 2. DETECT INTENT
-    const intent = detectIntent(message);
+    // 2. AI INTENT CLASSIFICATION
+    const intent = await classifyIntent(message);
 
     // 3. ROLE-AWARE RESPONSE LAYER (First Priority)
     let reply = getRoleAwareResponse(userRole, intent, message);

@@ -31,6 +31,11 @@ const getRoleAwareResponse = (role, intent, message) => {
     return "You can find all your active bookings, requests, and past rentals in the 'My Journeys' section at /dashboard.";
   }
 
+  if (intent === "CANCEL_BOOKING") {
+    if (role === "GUEST") return "To cancel a booking, please login first to access your dashboard.";
+    return "To cancel a reservation, please visit the 'My Journeys' tab in your /dashboard, select the trip, and click 'Cancel'. Please note our 24-hour cancellation policy.";
+  }
+
   // 3. OWNER / HOSTING FLOWS
   if (intent === "OWNER_HELP") {
     if (role === "OWNER") return "To add a new car:\n1. Go to /owner/dashboard.\n2. Click 'Add New Vehicle'.\n3. Upload your RC (Registration Certificate) and vehicle photos.\n4. Submit for Admin review.";
@@ -54,6 +59,11 @@ const getRoleAwareResponse = (role, intent, message) => {
   // 6. DEVELOPER / BMAD
   if (intent === "BMAD_HELP") {
     return "I am trained in the BMAD Method (BSP, PM, CA, DS, etc.). How can I help you with the current sprint or project analysis, Shraddha?";
+  }
+
+  // 7. CLARIFICATION / FALLBACK
+  if (intent === "CLARIFICATION") {
+    return "I'm not completely sure what you mean. Could you please rephrase? You can ask me about booking a car, your current reservations, or how to list your vehicle.";
   }
 
   return null; // No direct match, proceed to Gemini fallback
