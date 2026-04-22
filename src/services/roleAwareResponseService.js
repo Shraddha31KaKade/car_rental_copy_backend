@@ -2,58 +2,61 @@
 
 /**
  * Handles role-based access control and specific guidance for the chatbot.
- * Ensures users only get help relevant to their role.
+ * Ensures users only get help relevant to their role and current application state.
  */
 const getRoleAwareResponse = (role, intent, message) => {
   const msg = message.toLowerCase();
 
-  // 1. ACCESS DENIAL LOGIC (Renter/Owner/Admin)
-  if (role === "CUSTOMER") {
-    if (msg.includes("admin dashboard") || intent === "ADMIN_HELP") {
-      return "You are currently logged in as a renter. The Admin Dashboard is restricted to administrative personnel only.";
+  // 1. DASHBOARD & ACCESS LOGIC
+  if (intent === "ROLE_ACCESS_HELP") {
+    if (msg.includes("admin")) {
+      if (role === "ADMIN") return "Welcome back, Admin. You can access the full management suite at /admin.";
+      return "The Admin Panel (/admin) is restricted to authorized personnel. As a " + role.toLowerCase() + ", your main hub is the /dashboard.";
     }
-    if (msg.includes("owner dashboard") || msg.includes("list my car") || intent === "OWNER_HELP") {
-      return "As a renter, you cannot list cars directly. If you want to become a host:\n1. Log out of your current account.\n2. Complete the 'Become a Host' registration.\n3. Once approved, you can access the Owner Dashboard to list your vehicles.";
+    if (msg.includes("owner") || msg.includes("host")) {
+      if (role === "OWNER") return "You can manage your fleet and view analytics at /owner/dashboard.";
+      return "To list cars, you must first register as a Host. Once approved, you'll gain access to the Owner Dashboard.";
     }
+    return "You can access your personalized profile and journey history at /dashboard.";
   }
 
-  if (role === "OWNER") {
-    if (msg.includes("admin dashboard") || intent === "ADMIN_HELP") {
-      return "The Admin Dashboard is restricted to site administrators. As an owner, you have access to your Host Dashboard to manage your fleet.";
-    }
+  // 2. BOOKING FLOWS
+  if (intent === "BOOKING_FLOW") {
+    if (role === "GUEST") return "To start a booking, please sign in or create an account first. Once logged in, you can browse our fleet at /cars and request a ride.";
+    return "To book your premium ride:\n1. Visit /cars to browse our fleet.\n2. Select a vehicle and check availability.\n3. Click 'Request Booking'.\n4. Once the host approves, your journey will appear in your /dashboard.";
   }
 
-  // 2. SPECIFIC ACTION GUIDANCE
-  if (intent === "CANCEL_BOOKING") {
-    return "To cancel your booking:\n1. Go to your Dashboard.\n2. Locate the 'Bookings' or 'My Journeys' section.\n3. Find the specific booking and click 'Cancel Request'.\nNote: Cancellations may be subject to the owner's policy.";
+  if (intent === "VIEW_BOOKINGS") {
+    if (role === "GUEST") return "Please login to view your upcoming and past journeys. The login button is in the top right.";
+    return "You can find all your active bookings, requests, and past rentals in the 'My Journeys' section at /dashboard.";
   }
 
-  if (intent === "OWNER_HELP" && role === "OWNER") {
-    return "To add your car to the fleet, follow these steps:\n1. Go to Owner Dashboard -> 'My Cars'.\n2. Click the 'Add New Vehicle' button.\n3. Fill in details: Brand, Model, Year, and Fuel Type.\n4. Upload high-quality images of the vehicle.\n5. Upload your RC (Registration Certificate) document for verification.\n6. Submit for Admin Review.";
+  // 3. OWNER / HOSTING FLOWS
+  if (intent === "OWNER_HELP") {
+    if (role === "OWNER") return "To add a new car:\n1. Go to /owner/dashboard.\n2. Click 'Add New Vehicle'.\n3. Upload your RC (Registration Certificate) and vehicle photos.\n4. Submit for Admin review.";
+    return "Interested in becoming a host? Log out of your current account and register using the 'Become a Host' link to start listing your premium vehicles.";
   }
 
-  if (intent === "VIEW_PENDING" && role === "ADMIN") {
-    return "To see pending reviews:\n1. Enter Admin Panel.\n2. Go to 'Listing Reviews' or 'Pending Approvals' tab.\n3. You will see a list of cars and documents awaiting your decision.";
+  // 4. PAYMENTS & SECURITY
+  if (intent === "PAYMENT_INFO") {
+    return "All payments on Antigravity are handled securely through our platform. We support major credit cards and UPI. You only pay once the host has confirmed your booking request.";
   }
 
-  if (intent === "VIEW_DOCUMENTS" && role === "ADMIN") {
-    return "To manage RC books and documents:\n1. Navigate to 'User Verification' in the Admin Panel.\n2. Select a specific user or vehicle listing.\n3. Click 'View Documents' to see uploaded RC books and identity proofs.";
-  }
-
+  // 5. SERVICES & AUTH
   if (intent === "SERVICES_HELP") {
-    return "Explore our premium services at the '/services' page, including Chauffeur Drives, Wedding Specials, and Airport Transfers.";
+    return "Explore our boutique services at /services, including Chauffeur-driven luxury, Wedding specials, and VIP Airport transfers.";
   }
 
   if (intent === "AUTH_HELP") {
-    return "You can find Login and Sign Up options in the top navigation bar. If you're already logged in, the Logout button is located in your profile dropdown menu.";
+    return "You can manage your account, sign up, or log out using the profile menu in the top navigation bar.";
   }
 
-  // 3. ROLE-SPECIFIC GUIDANCE TIPS (Helpful context)
-  if (role === "CUSTOMER" && intent === "BOOKING_HELP") {
-    return "To book a car:\n1. Browse '/cars' fleet.\n2. Select your preferred vehicle.\n3. Choose your dates and click 'Request Booking'.\n4. Wait for the owner's confirmation to proceed.";
+  // 6. DEVELOPER / BMAD
+  if (intent === "BMAD_HELP") {
+    return "I am trained in the BMAD Method (BSP, PM, CA, DS, etc.). How can I help you with the current sprint or project analysis, Shraddha?";
   }
 
-  return null; // No specific override, continue to Gemini/Search
+  return null; // No direct match, proceed to Gemini fallback
 };
 
 module.exports = { getRoleAwareResponse };

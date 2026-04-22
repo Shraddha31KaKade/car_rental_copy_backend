@@ -51,7 +51,7 @@ exports.handleChat = async (req, res) => {
       } 
       // CASE: HELP or GENERAL CHAT (Route to Gemini with context)
       else {
-        reply = await getGeminiResponse(message, intent, session.history);
+        reply = await getGeminiResponse(message, intent, session.history, userRole);
         session.lastIntent = intent;
       }
     }
