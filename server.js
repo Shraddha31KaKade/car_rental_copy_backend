@@ -64,6 +64,27 @@ app.get("/api/settings", async (req, res) => {
   }
 });
 
+// Endpoint for admins to update settings
+app.patch("/api/settings", async (req, res) => {
+  try {
+    const { maintenanceMode, globalAnnouncement } = req.body;
+    let settings = await prisma.systemSettings.findUnique({ where: { id: 1 } });
+    if (!settings) {
+      settings = await prisma.systemSettings.create({ data: { id: 1 } });
+    }
+    const updated = await prisma.systemSettings.update({
+      where: { id: 1 },
+      data: {
+        maintenanceMode: maintenanceMode !== undefined ? maintenanceMode : settings.maintenanceMode,
+        globalAnnouncement: globalAnnouncement !== undefined ? globalAnnouncement : settings.globalAnnouncement,
+      }
+    });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Setup Nightly Cron Jobs (Running every night at midnight)
 cron.schedule("0 0 * * *", async () => {
   console.log("[CRON] Running nightly settlement...");

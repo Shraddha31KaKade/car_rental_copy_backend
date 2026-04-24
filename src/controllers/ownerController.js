@@ -45,6 +45,7 @@ exports.getOwnerRequests = async (req, res) => {
       include: {
         car:  { select: { name: true, image: true, price: true } },
         user: { select: { name: true, email: true } },
+        escrow: true, // INCLUDE ESCROW FOR BREAKDOWN
       },
       orderBy: { id: "desc" },
     });
@@ -171,15 +172,27 @@ exports.getAnalytics = async (req, res) => {
   try {
     const ownerId = Number(req.user.id);
 
-    const earnings = await prisma.booking.aggregate({
+    const earnings = await prisma.booking.findMany({
       where: {
-        status: { in: ["CONFIRMED", "COMPLETED", "ACTIVE"] },
+        status: { in: ["CONFIRMED", "COMPLETED", "SETTLED"] },
         car:    { ownerId },
       },
-      _sum: { totalAmount: true },
+      include: { escrow: true },
     });
 
-    const totalEarnings = earnings._sum.totalAmount || 0;
+    let grossEarnings = 0;
+    let platformFees = 0;
+
+    const totalEarnings = earnings.reduce((sum, b) => {
+      grossEarnings += b.totalAmount;
+      if (b.escrow) {
+        platformFees += b.escrow.platformFee;
+        return sum + b.escrow.ownerShare;
+      }
+      const fee = b.totalAmount * 0.15;
+      platformFees += fee;
+      return sum + (b.totalAmount * 0.85); // fallback if no escrow yet
+    }, 0);
 
     const cars = await prisma.car.findMany({
       where:   { ownerId },
@@ -194,15 +207,15 @@ exports.getAnalytics = async (req, res) => {
     const earningsPerCar = cars.map((car) => ({
       carId:  car.id,
       carName: car.name,
-      earned: car.bookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0),
+      earned: car.bookings.reduce((sum, b) => sum + (b.escrow ? b.escrow.ownerShare : b.totalAmount * 0.85), 0),
     }));
 
     const allValidBookings = await prisma.booking.findMany({
       where: {
-        status: { in: ["CONFIRMED", "COMPLETED", "ACTIVE"] },
+        status: { in: ["CONFIRMED", "COMPLETED", "SETTLED"] },
         car:    { ownerId },
       },
-      select: { startDate: true, totalAmount: true },
+      include: { escrow: true },
     });
 
     let earningsPerMonth = {};
@@ -215,11 +228,12 @@ exports.getAnalytics = async (req, res) => {
       const d = new Date(b.startDate);
       if (d.getFullYear() === currYear) {
         const m = `${currYear}-${(d.getMonth() + 1).toString().padStart(2, "0")}`;
-        earningsPerMonth[m] += b.totalAmount || 0;
+        const amount = b.escrow ? b.escrow.ownerShare : b.totalAmount * 0.85;
+        earningsPerMonth[m] += amount;
       }
     });
 
-    res.json({ totalEarnings, earningsPerCar, earningsPerMonth, history: allValidBookings });
+    res.json({ totalEarnings, grossEarnings, platformFees, earningsPerCar, earningsPerMonth, history: allValidBookings });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
