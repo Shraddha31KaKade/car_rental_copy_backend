@@ -20,12 +20,26 @@ exports.listPendingCars = async (req, res) => {
 };
 
 // ────────────────────────────────────────────────────────────────────────────
+exports.listApprovedCars = async (req, res) => {
+  try {
+    const cars = await prisma.car.findMany({
+      where:   { listingStatus: "APPROVED" },
+      include: { owner: { select: { name: true, email: true } } },
+      orderBy: { id: "desc" },
+    });
+    res.json({ success: true, data: cars });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ────────────────────────────────────────────────────────────────────────────
 exports.getCarDetailsForReview = async (req, res) => {
   try {
     const { id } = req.params;
     const car    = await prisma.car.findUnique({
       where:   { id: parseInt(id) },
-      include: { owner: true },
+      include: { owner: { include: { ownedCars: true } } },
     });
 
     if (!car) return res.status(404).json({ success: false, error: "Car not found" });

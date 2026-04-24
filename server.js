@@ -29,6 +29,10 @@ const aiRoutes = require("./src/routes/aiRoutes");
 const verificationRoutes = require("./src/routes/verificationRoutes");
 const adminRoutes = require("./src/routes/adminRoutes");
 const contactRoutes = require("./src/routes/contactRoutes");
+const marketplaceRoutes = require("./src/routes/marketplaceRoutes");
+const cron = require("node-cron");
+const { settleExpiredBookings, processQueuedPayouts } = require("./src/services/marketplaceService");
+const prisma = require("./src/config/prisma");
 
 const app = express();
 
@@ -43,7 +47,30 @@ app.use("/api/owner", ownerRoutes);
 app.use("/api/v1/ai", aiRoutes);
 app.use("/api/verifications", verificationRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/admin", adminRoutes);
 app.use("/api/contact", contactRoutes);
+app.use("/api/marketplace", marketplaceRoutes);
+
+// Endpoint for frontend to fetch settings (marquee & maintenance)
+app.get("/api/settings", async (req, res) => {
+  try {
+    let settings = await prisma.systemSettings.findUnique({ where: { id: 1 } });
+    if (!settings) {
+      settings = await prisma.systemSettings.create({ data: { id: 1 } });
+    }
+    res.json(settings);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Setup Nightly Cron Jobs (Running every night at midnight)
+cron.schedule("0 0 * * *", async () => {
+  console.log("[CRON] Running nightly settlement...");
+  await settleExpiredBookings();
+  console.log("[CRON] Running nightly payouts...");
+  await processQueuedPayouts();
+});
 
 app.get("/", (req, res) => {
   res.send("Car Rental API running");

@@ -1,5 +1,6 @@
 const prisma = require("../config/prisma");
 const { sendTemplate } = require("../services/emailService");
+const { createEscrowRecord } = require("../services/marketplaceService");
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 function fmtDate(d) {
@@ -9,6 +10,12 @@ function fmtDate(d) {
 // ────────────────────────────────────────────────────────────────────────────
 exports.createBooking = async (req, res) => {
   try {
+    // Check maintenance mode
+    const settings = await prisma.systemSettings.findUnique({ where: { id: 1 } });
+    if (settings?.maintenanceMode) {
+      return res.status(503).json({ error: "System is currently under maintenance. Booking is temporarily disabled." });
+    }
+
     const { carId, startDate, endDate } = req.body;
 
     const start = new Date(startDate);
@@ -205,9 +212,14 @@ exports.payBooking = async (req, res) => {
     if (booking.userId !== Number(req.user.id)) return res.status(403).json({ error: "Forbidden" });
     if (booking.status !== "APPROVED") return res.status(400).json({ error: "Booking is not in APPROVED state." });
 
-    const updated = await prisma.booking.update({
-      where: { id: Number(id) },
-      data:  { status: "CONFIRMED", paymentId: `mock_st_${Date.now()}` },
+    const updated = await prisma.$transaction(async (tx) => {
+      const b = await tx.booking.update({
+        where: { id: Number(id) },
+        data:  { status: "CONFIRMED", paymentId: `mock_st_${Date.now()}` },
+      });
+      // Create escrow record 
+      await createEscrowRecord(b.id, b.totalAmount, tx);
+      return b;
     });
 
     res.json({

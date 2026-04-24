@@ -24,6 +24,9 @@ const getGeminiResponse = async (message, intent, history = [], userRole = "GUES
     - Services: "/services" (Premium offerings)
     - Owner Panel: "/owner/dashboard" (For hosts to manage fleets)
     - Admin Panel: "/admin" (System management - restricted)
+      - Verifications: "/admin/verifications" (Approve cars & handle documents)
+      - User Management: "/admin/users" (Manage users, feedback, and customer inquiries)
+      - System Settings: "/admin/settings" (Global announcements, maintenance mode, fees, API keys)
     - Support: "/contact"
     - Profile: "/profile"
 
@@ -38,7 +41,9 @@ const getGeminiResponse = async (message, intent, history = [], userRole = "GUES
        - Requirements: ID Proof & RC Document.
     3. **Admin**:
        - Management hub is /admin.
-       - Handles approvals and system health.
+       - Handles approvals, system health, user issues, and global announcements.
+       - If an admin asks about global announcements, guide them to /admin/settings.
+       - If an admin asks about approving cars, guide them to /admin/verifications.
 
     ### STYLE:
     - Professional, premium, and concise.

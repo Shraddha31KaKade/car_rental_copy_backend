@@ -62,6 +62,17 @@ exports.handleInquiry = async (req, res) => {
       }
     }
 
+    // Save inquiry to database
+    await prisma.inquiry.create({
+      data: {
+        name,
+        email,
+        mobile,
+        message,
+        autoReply: autoResponse
+      }
+    });
+
     res.status(200).json({
       message: matchedCar 
         ? `Transmission received. We've automatically sent the pricing details for the ${matchedCar.name} as an SMS to ${mobile}.`

@@ -171,10 +171,20 @@ exports.getCarAvailability = async (req, res) => {
 
 exports.createCar = async (req, res) => {
   try {
-    const { name, brand, type, year, price, condition, seats, transmission, fuel, location, lat, lng } = req.body;
+    // Check maintenance mode
+    const settings = await prisma.systemSettings.findUnique({ where: { id: 1 } });
+    if (settings?.maintenanceMode) {
+      return res.status(503).json({ error: "System is currently under maintenance. Adding new cars is temporarily disabled." });
+    }
+
+    const { name, brand, type, year, price, condition, seats, transmission, fuel, location, lat, lng, ownerName, ownerEmail, ownerContact } = req.body;
     
     if (!req.user || !req.user.id) {
       return res.status(401).json({ error: "Unauthorized access detected." });
+    }
+
+    if (req.user.role === "ADMIN") {
+      return res.status(403).json({ error: "Admins cannot list cars. Please use a personal account." });
     }
 
     let displayImage = null;
@@ -213,6 +223,7 @@ exports.createCar = async (req, res) => {
         transmission, fuel, location,
         lat: lat ? parseFloat(lat) : null,
         lng: lng ? parseFloat(lng) : null,
+        ownerName, ownerEmail, ownerContact,
         image: displayImage,
         images: images,
         rcDocument: rcDocument,
@@ -220,11 +231,13 @@ exports.createCar = async (req, res) => {
       }
     });
 
-    // Auto-upgrade user role to OWNER
-    await prisma.user.update({
-      where: { id: ownerId },
-      data: { role: "OWNER" }
-    });
+    // Auto-upgrade user role to OWNER if they are not already an OWNER or ADMIN
+    if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") {
+      await prisma.user.update({
+        where: { id: ownerId },
+        data: { role: "OWNER" }
+      });
+    }
 
     res.status(201).json(car);
   } catch (error) {
@@ -236,7 +249,7 @@ exports.createCar = async (req, res) => {
 exports.updateCar = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, brand, type, year, price, condition, seats, transmission, fuel, location, lat, lng } = req.body;
+    const { name, brand, type, year, price, condition, seats, transmission, fuel, location, lat, lng, ownerName, ownerEmail, ownerContact } = req.body;
     
     if (!req.user || !req.user.id) {
       return res.status(401).json({ error: "Unauthorized access detected." });
@@ -249,6 +262,7 @@ exports.updateCar = async (req, res) => {
 
     let updateData = {
       name, brand, type, condition, transmission, fuel, location,
+      ownerName, ownerEmail, ownerContact,
       year: year ? Math.floor(Number(year)) : undefined,
       price: price ? Math.floor(Number(price)) : undefined,
       seats: seats ? Math.floor(Number(seats)) : undefined,
@@ -335,6 +349,72 @@ exports.pauseCar = async (req, res) => {
 
     res.json(updatedCar);
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.deleteCar = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const carAuth = await prisma.car.findUnique({ where: { id: Number(id) } });
+    if (!carAuth) {
+      return res.status(404).json({ error: "Car not found" });
+    }
+
+    // Admins or the owner can delete the car
+    if (req.user.role !== "ADMIN" && carAuth.ownerId !== Number(req.user.id)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    // Setup cloudinary to delete images
+    const cloudinary = require("cloudinary").v2;
+    if (process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_KEY !== "demo") {
+      cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET,
+      });
+
+      const deleteFromCloudinary = async (url) => {
+        if (!url || !url.includes("cloudinary.com")) return;
+        try {
+          // Extract public ID from Cloudinary URL
+          // e.g. https://res.cloudinary.com/demo/image/upload/v1234567/car-rental/cars/xyz.jpg
+          const parts = url.split("/");
+          const uploadIndex = parts.findIndex(p => p === "upload");
+          if (uploadIndex !== -1) {
+            const publicIdWithExt = parts.slice(uploadIndex + 2).join("/"); // skip version
+            const publicId = publicIdWithExt.split(".")[0];
+            await cloudinary.uploader.destroy(publicId);
+          }
+        } catch (err) {
+          console.error("Cloudinary deletion error:", err);
+        }
+      };
+
+      if (carAuth.image) await deleteFromCloudinary(carAuth.image);
+      if (carAuth.images && Array.isArray(carAuth.images)) {
+        for (const img of carAuth.images) {
+          await deleteFromCloudinary(img);
+        }
+      }
+      if (carAuth.rcDocument) await deleteFromCloudinary(carAuth.rcDocument);
+    }
+
+    // Delete bookings related to the car first (due to foreign key constraint)
+    await prisma.booking.deleteMany({
+      where: { carId: Number(id) }
+    });
+
+    // Delete the car
+    await prisma.car.delete({
+      where: { id: Number(id) }
+    });
+
+    res.json({ message: "Car deleted successfully" });
+  } catch (error) {
+    console.error("DELETE CAR ERROR:", error);
     res.status(500).json({ error: error.message });
   }
 };

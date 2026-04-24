@@ -34,5 +34,6 @@ const cpUpload = upload.fields([
 router.post("/", authMiddleware, cpUpload, carController.createCar);
 router.put("/:id", authMiddleware, cpUpload, carController.updateCar);
 router.patch("/:id/pause", authMiddleware, carController.pauseCar);
+router.delete("/:id", authMiddleware, carController.deleteCar);
 
 module.exports = router;

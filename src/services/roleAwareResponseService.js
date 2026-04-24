@@ -17,6 +17,10 @@ const getRoleAwareResponse = (role, intent, message) => {
       if (role === "OWNER") return "You can manage your fleet and view analytics at /owner/dashboard.";
       return "To list cars, you must first register as a Host. Once approved, you'll gain access to the Owner Dashboard.";
     }
+    
+    // If Admin/Owner asks a specific question without explicitly using the word 'admin', let Gemini handle it using its advanced context
+    if (role === "ADMIN" || role === "OWNER") return null; 
+
     return "You can access your personalized profile and journey history at /dashboard.";
   }
 

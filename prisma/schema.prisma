@@ -29,6 +29,7 @@ enum BookingStatus {
   ACTIVE
   REJECTED
   COMPLETED
+  SETTLED
   CANCELLED
 }
 
@@ -66,6 +67,8 @@ model User {
   reportsMade        Report[] @relation("ReporterRelation")
   reportsReceived    Report[] @relation("ReportedUserRelation")
   adminReviewedCars  Car[]    @relation("AdminCarReviews")
+  
+  wallet             OwnerWallet?
 }
 
 model Car {
@@ -90,6 +93,9 @@ model Car {
   carStatus    CarStatus    @default(AVAILABLE)
   ownerId      Int?
   owner        User?        @relation("CarOwner", fields: [ownerId], references: [id])
+  ownerName    String?
+  ownerEmail   String?
+  ownerContact String?
 
   listingStatus   ListingStatus @default(PENDING_APPROVAL)
   adminNotes      String?
@@ -120,6 +126,10 @@ model Booking {
   user User @relation(fields: [userId], references: [id])
   car  Car  @relation(fields: [carId], references: [id])
   reports Report[]
+  escrow  PlatformEscrow?
+  
+  settledAt DateTime?
+  createdAt DateTime  @default(now())
 }
 
 model BlockedDate {
@@ -240,4 +250,75 @@ model ReportAIInsight {
   createdAt         DateTime @default(now())
 
   report            Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+}
+
+model Inquiry {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String?
+  mobile    String?
+  message   String
+  autoReply String?
+  createdAt DateTime @default(now())
+}
+
+model SystemSettings {
+  id                 Int      @id @default(1)
+  maintenanceMode    Boolean  @default(false)
+  globalAnnouncement String?
+  updatedAt          DateTime @updatedAt
+}
+
+enum WalletTxType {
+  CREDIT
+  DEBIT
+  REFUND
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}
+
+model PlatformEscrow {
+  id          Int      @id @default(autoincrement())
+  bookingId   Int      @unique
+  booking     Booking  @relation(fields: [bookingId], references: [id])
+  totalAmount Float
+  platformFee Float
+  ownerShare  Float
+  createdAt   DateTime @default(now())
+}
+
+model OwnerWallet {
+  id           Int      @id @default(autoincrement())
+  ownerId      Int      @unique
+  owner        User     @relation(fields: [ownerId], references: [id])
+  balance      Float    @default(0)
+  updatedAt    DateTime @updatedAt
+  transactions WalletTransaction[]
+  payouts      Payout[]
+}
+
+model WalletTransaction {
+  id        Int          @id @default(autoincrement())
+  walletId  Int
+  wallet    OwnerWallet  @relation(fields: [walletId], references: [id])
+  type      WalletTxType
+  amount    Float
+  bookingId Int?
+  createdAt DateTime     @default(now())
+}
+
+model Payout {
+  id         Int          @id @default(autoincrement())
+  walletId   Int
+  wallet     OwnerWallet  @relation(fields: [walletId], references: [id])
+  amount     Float
+  status     PayoutStatus @default(PENDING)
+  gatewayRef String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
 }
