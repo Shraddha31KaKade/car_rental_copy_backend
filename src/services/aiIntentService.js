@@ -59,6 +59,7 @@ Return ONLY a valid JSON object in this exact format, with no markdown formattin
 
   } catch (error) {
     console.error("AI Intent Classification Error:", error);
+   
     // Fallback strategy: if AI classifier fails, route to general chat which will handle graceful fallback
     return "GENERAL_CHAT"; 
   }

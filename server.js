@@ -30,6 +30,7 @@ const verificationRoutes = require("./src/routes/verificationRoutes");
 const adminRoutes = require("./src/routes/adminRoutes");
 const contactRoutes = require("./src/routes/contactRoutes");
 const marketplaceRoutes = require("./src/routes/marketplaceRoutes");
+const paymentRoutes = require("./src/routes/paymentRoutes");
 const cron = require("node-cron");
 const { settleExpiredBookings, processQueuedPayouts } = require("./src/services/marketplaceService");
 const prisma = require("./src/config/prisma");
@@ -37,6 +38,10 @@ const prisma = require("./src/config/prisma");
 const app = express();
 
 app.use(cors()); // ✅ allow all origins
+
+// Razorpay Webhook MUST preserve raw body for signature verification
+app.use("/api/payments/webhook", require("express").text({ type: "application/json" }), require("./src/controllers/paymentController").razorpayWebhook);
+
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
@@ -50,6 +55,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/marketplace", marketplaceRoutes);
+app.use("/api/payments", paymentRoutes);
 
 // Endpoint for frontend to fetch settings (marquee & maintenance)
 app.get("/api/settings", async (req, res) => {

@@ -1,25 +1,3 @@
-// const service = require("../services/carService");
-
-// exports.getCars = async (req, res) => {
-//   try {
-//     const cars = await service.getAllCars();
-//     res.json(cars);
-//   } catch (error) {
-//     res.status(500).json({ error: error.message });
-//   }
-// };
-
-// exports.createCar = async (req, res) => {
-//   try {
-//     const car = await service.addCar(req.body);
-//     res.json(car);
-//   } catch (error) {
-//     res.status(500).json({ error: error.message });
-//   }
-// };
-
-
-
 
 const prisma = require("../config/prisma");
 const { sendTemplate } = require("../services/emailService");
