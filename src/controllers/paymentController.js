@@ -62,13 +62,12 @@ exports.verifyPayment = async (req, res) => {
       // Payment is verified
       const booking = await prisma.booking.findUnique({ where: { id: Number(bookingId) } });
       if (booking && booking.status === "PAYMENT_PENDING") {
-        await prisma.$transaction(async (tx) => {
-          const b = await tx.booking.update({
-            where: { id: Number(bookingId) },
-            data: { status: "CONFIRMED", paymentId: razorpay_payment_id },
-          });
-          // Create escrow record
-          await createEscrowRecord(b.id, b.totalAmount, tx);
+        // Flow 1: Escrow record created immediately after signature verification, BEFORE booking update
+        await createEscrowRecord(Number(bookingId), booking.totalAmount);
+
+        await prisma.booking.update({
+          where: { id: Number(bookingId) },
+          data: { status: "CONFIRMED", paymentId: razorpay_payment_id },
         });
       }
       res.json({ success: true, message: "Payment verified successfully" });
@@ -94,8 +93,21 @@ exports.razorpayWebhook = async (req, res) => {
     if (expectedSignature === signature) {
       const parsedBody = JSON.parse(req.body);
       const event = parsedBody.event;
+      
       if (event === "payment.captured") {
-        console.log("Payment captured via webhook:", parsedBody.payload.payment.entity.id);
+        const paymentId = parsedBody.payload.payment.entity.id;
+        
+        // Flow 2: Idempotency check. If paymentId already exists, return 200 immediately.
+        const existingBooking = await prisma.booking.findFirst({
+          where: { paymentId: paymentId }
+        });
+
+        if (existingBooking) {
+          console.log(`Webhook ignored: Payment ${paymentId} already processed.`);
+          return res.status(200).json({ status: "already_processed" });
+        }
+
+        console.log("Payment captured via webhook:", paymentId);
       }
       res.status(200).json({ status: "ok" });
     } else {

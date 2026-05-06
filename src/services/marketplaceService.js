@@ -138,6 +138,48 @@ exports.getPayoutHistory = async (ownerId) => {
 
 // ─── SETTLEMENT & CRON SERVICES ─────────────────────────────────────────────
 
+exports.cancelExpiredPendingPayments = async () => {
+  const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000);
+  
+  const expiredBookings = await prisma.booking.findMany({
+    where: {
+      status: "PAYMENT_PENDING",
+      createdAt: { lte: fifteenMinsAgo },
+    },
+  });
+
+  let cancelledCount = 0;
+  for (const booking of expiredBookings) {
+    await prisma.booking.update({
+      where: { id: booking.id },
+      data: { status: "CANCELLED" },
+    });
+    cancelledCount++;
+  }
+  return { cancelled: cancelledCount };
+};
+
+exports.autoCompleteBookings = async () => {
+  const now = new Date();
+  
+  const bookingsToComplete = await prisma.booking.findMany({
+    where: {
+      status: "CONFIRMED",
+      endDate: { lt: now },
+    },
+  });
+
+  let completedCount = 0;
+  for (const booking of bookingsToComplete) {
+    await prisma.booking.update({
+      where: { id: booking.id },
+      data: { status: "COMPLETED" },
+    });
+    completedCount++;
+  }
+  return { completed: completedCount };
+};
+
 exports.settleExpiredBookings = async () => {
   const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
 

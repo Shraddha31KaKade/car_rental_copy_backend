@@ -32,7 +32,7 @@ const contactRoutes = require("./src/routes/contactRoutes");
 const marketplaceRoutes = require("./src/routes/marketplaceRoutes");
 const paymentRoutes = require("./src/routes/paymentRoutes");
 const cron = require("node-cron");
-const { settleExpiredBookings, processQueuedPayouts } = require("./src/services/marketplaceService");
+const { settleExpiredBookings, processQueuedPayouts, cancelExpiredPendingPayments, autoCompleteBookings } = require("./src/services/marketplaceService");
 const prisma = require("./src/config/prisma");
 
 const app = express();
@@ -91,10 +91,26 @@ app.patch("/api/settings", async (req, res) => {
   }
 });
 
-// Setup Nightly Cron Jobs (Running every night at midnight)
+// Cron 1: 15-minute expiry check runs all day
+cron.schedule("*/15 * * * *", async () => {
+  console.log("[CRON] Checking for expired pending payments...");
+  await cancelExpiredPendingPayments();
+});
+
+// Cron 2: Auto-complete at 11 PM
+cron.schedule("0 23 * * *", async () => {
+  console.log("[CRON] Running nightly auto-complete...");
+  await autoCompleteBookings();
+});
+
+// Cron 3: Settlement at midnight
 cron.schedule("0 0 * * *", async () => {
   console.log("[CRON] Running nightly settlement...");
   await settleExpiredBookings();
+});
+
+// Cron 4: Payouts at 1 AM
+cron.schedule("0 1 * * *", async () => {
   console.log("[CRON] Running nightly payouts...");
   await processQueuedPayouts();
 });
