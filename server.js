@@ -52,7 +52,6 @@ app.use("/api/owner", ownerRoutes);
 app.use("/api/v1/ai", aiRoutes);
 app.use("/api/verifications", verificationRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/admin", adminRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/marketplace", marketplaceRoutes);
 app.use("/api/payments", paymentRoutes);
